@@ -18,7 +18,7 @@ object JettyLauncher {
     context.setEventListeners(Array(new ScalatraListener))
 
     context.addServlet(new ServletHolder(new GitHubGraphServlet(system)), "/*")
-    context.addServlet(new ServletHolder(new AuthServlet(system)), "/*")
+    context.addServlet(new ServletHolder(new AuthServlet(system)), "/auth")
 
     server.setHandler(context)
 
