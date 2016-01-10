@@ -23,7 +23,8 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
     val followers =  await(getUserFollowers(user))
     val repos = await(getUserRepos(user))
     val repoDetails = await(Future.sequence(repos))
-    GithubGraph(user, followers, repoDetails)
+
+    GithubGraph(GitHubGraphUser(user.name, user.login,user.id.toString(), user.avatar_url,user.html_url, followers, repoDetails))
   }
 
   def getUserRepos(user: GithubUserDetail) : Future[Seq[Future[GraphRepository]]] =  async {
@@ -33,8 +34,8 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
 
   def buildGraphRepo(repo: RepositoryDetail): Future[GraphRepository] = async{
     val starGazers = await(getRepoStargazers(repo))
-    val langauges = await(getRepoLanguages(repo))
-    GraphRepository(repo.name, repo.description, repo.html_url, repo.fork, starGazers, langauges)
+    val languages = await(getRepoLanguages(repo))
+    GraphRepository(repo.name, repo.description, repo.html_url, repo.fork, starGazers, languages)
   }
 
   def getRepoStargazers(repo: RepositoryDetail): Future[Seq[GraphUserSummary]] = async {
@@ -47,8 +48,11 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
     followers.map(f => GraphUserSummary(f.login, f.avatar_url, f.html_url))
   }
 
-  def getRepoLanguages(repo: RepositoryDetail): Future[Map[String, BigInt]] = async{
-    await(JsonRestClient.get[Map[String, BigInt]](buildRequest(r => url(repo.languages_url))))
+  def getRepoLanguages(repo: RepositoryDetail): Future[Seq[Language]] = async{
+    val languageMap = await(JsonRestClient.get[Map[String, BigInt]](buildRequest(r => url(repo.languages_url))))
+    languageMap.map((kvp) => {
+      Language(kvp._1, kvp._2)
+    }) toSeq
   }
 
   def getUserDetails(username: String): Future[GithubUserDetail] = {
@@ -91,6 +95,7 @@ case class Plan(
                  collaborators: Double,
                  private_repos: Double
                )
+
 
 
 case class GithubUserDetail(login: String,
@@ -223,14 +228,34 @@ case class RepositoryDetail(
                           network_count: Double,
                           subscribers_count: Double)
 
+
+abstract class GraphObject;
+
+case class GraphObjectCollection[T <: GraphObject](children: Seq[T])
+
+ object  GraphObjectCollection{
+   implicit def seqToGraphCollection[T <: GraphObject](children: Seq[T]): GraphObjectCollection[T] ={
+    GraphObjectCollection(children)
+  }
+}
+
 case class Permissions(admin: Boolean, push: Boolean, pull: Boolean)
 
-case class GraphUserSummary(  login: String,
+case class Language(name: String, lineCount: BigInt) extends GraphObject
+
+case class GraphUserSummary(  name: String,
                               avatar_url: String,
-                              html_url: String)
+                              html_url: String) extends GraphObject
 
 
-case class GraphRepository(name: String, description: String, htmlUrl: String, isFork: Boolean, starGazers: Seq[GraphUserSummary], languages: Map[String, BigInt])
+case class GraphRepository(name: String, description: String, htmlUrl: String, isFork: Boolean,
+                           starGazers: Seq[GraphUserSummary],
+                           languages: Seq[Language]) extends GraphObject
 
-case class GithubGraph(userDetail: GithubUserDetail, followers: Seq[GraphUserSummary], repositories: Seq[GraphRepository])
+case class GitHubGraphUser(name: String, login: String, githubId: String,
+                           avatar_url: String, html_url: String,
+                          followers: Seq[GraphUserSummary],
+                           repositories: Seq[GraphRepository] )
+
+case class GithubGraph(userDetail: GitHubGraphUser)
 

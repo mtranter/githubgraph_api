@@ -36,20 +36,26 @@ class AuthService(implicit ctx: ExecutionContext){
 
     val collection = await(db.coll("logins"))
 
-    val query = BSONDocument("access_token" -> access_token)
+    val query = BSONDocument("githubId" -> githubId)
 
     val exists = await(collection.find(query).one[BSONDocument])
-    val docId = BSONObjectID.generate
+
 
     exists match  {
       case Some(doc) =>  {
         val idOpt = doc.getAs[BSONObjectID]("_id")
         idOpt match {
-          case Some(id) => id.stringify
+          case Some(id) => {
+            await(collection.update(query, BSONDocument(
+              "$set" -> BSONDocument(
+                "access_token" -> access_token))))
+            id.stringify
+          }
           case None => null
         }
       }
       case None => {
+        val docId = BSONObjectID.generate
         val user = LoginUser(docId, name, githubId, githubLogin, url, html_url, access_token)
         val insertResult = await(collection.insert(user)).ok
         docId.stringify
@@ -79,10 +85,15 @@ class AuthService(implicit ctx: ExecutionContext){
     val exists = await(collection.find(query).one[BSONDocument])
 
     exists match  {
-      case Some(doc) =>  true
+      case Some(doc) => {
+        collection.remove(query)
+        true
+      }
       case None => false
     }
   }
+
+
 }
 
 case class CheckStates(uuid: String)

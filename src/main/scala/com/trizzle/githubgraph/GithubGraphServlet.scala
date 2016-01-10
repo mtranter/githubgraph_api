@@ -9,7 +9,7 @@ import org.scalatra.json._
 import scala.concurrent.ExecutionContext
 
 
-class GitHubGraphServlet(system: ActorSystem) extends GitHubgraphStack with FutureSupport with JacksonJsonSupport{
+class GitHubGraphServlet(system: ActorSystem) extends GitHubgraphStack with FutureSupport with JacksonJsonSupport with CorsSupport{
 
   protected implicit def executor: ExecutionContext = system.dispatcher
 
@@ -19,6 +19,9 @@ class GitHubGraphServlet(system: ActorSystem) extends GitHubgraphStack with Futu
 
   before() {
     contentType = formats("json")
+  }
+  options("/*"){
+    response.setHeader("Access-Control-Allow-Headers", request.getHeader("Access-Control-Request-Headers"));
   }
   get("/user/:username") {
     new AsyncResult() { val is =
