@@ -48,11 +48,8 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
     followers.map(f => GraphUserSummary(f.login, f.avatar_url, f.html_url))
   }
 
-  def getRepoLanguages(repo: RepositoryDetail): Future[Seq[Language]] = async{
-    val languageMap = await(JsonRestClient.get[Map[String, BigInt]](buildRequest(r => url(repo.languages_url))))
-    languageMap.map((kvp) => {
-      Language(kvp._1, kvp._2)
-    }) toSeq
+  def getRepoLanguages(repo: RepositoryDetail): Future[Map[String, BigInt]] = {
+    JsonRestClient.get[Map[String, BigInt]](buildRequest(r => url(repo.languages_url)))
   }
 
   def getUserDetails(username: String): Future[GithubUserDetail] = {
@@ -241,7 +238,6 @@ case class GraphObjectCollection[T <: GraphObject](children: Seq[T])
 
 case class Permissions(admin: Boolean, push: Boolean, pull: Boolean)
 
-case class Language(name: String, lineCount: BigInt) extends GraphObject
 
 case class GraphUserSummary(  name: String,
                               avatar_url: String,
@@ -250,7 +246,7 @@ case class GraphUserSummary(  name: String,
 
 case class GraphRepository(name: String, description: String, htmlUrl: String, isFork: Boolean,
                            starGazers: Seq[GraphUserSummary],
-                           languages: Seq[Language]) extends GraphObject
+                           languages: Map[String, BigInt]) extends GraphObject
 
 case class GitHubGraphUser(name: String, login: String, githubId: String,
                            avatar_url: String, html_url: String,
