@@ -33,7 +33,7 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
   }
 
   def buildGraphRepo(repo: RepositoryDetail): Future[GraphRepository] = async{
-    val starGazers = await(getRepoStargazers(repo))
+    val starGazers: Seq[GraphUserSummary] = if(repo.stargazers_count > 0) await(getRepoStargazers(repo)) else null
     val languages = await(getRepoLanguages(repo))
     GraphRepository(repo.name, repo.description, repo.html_url, repo.fork, starGazers, languages)
   }
