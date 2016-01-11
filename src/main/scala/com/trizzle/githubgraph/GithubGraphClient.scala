@@ -20,11 +20,13 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
   }
 
   def getGraph(user: GithubUserDetail): Future[GithubGraph] = async {
-    val followers =  await(getUserFollowers(user))
+    val followersF =  getUserFollowers(user)
     val repos = await(getUserRepos(user))
     val repoDetails = await(Future.sequence(repos))
 
-    GithubGraph(GitHubGraphUser(user.name, user.login,user.id.toString(), user.avatar_url,user.html_url, followers, repoDetails))
+    val graphF = for {followers <- followersF} yield GithubGraph(GitHubGraphUser(user.name, user.login,user.id.toString(), user.avatar_url,user.html_url, followers, repoDetails))
+
+    await(graphF)
   }
 
   def getUserRepos(user: GithubUserDetail) : Future[Seq[Future[GraphRepository]]] =  async {
@@ -33,13 +35,27 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
   }
 
   def buildGraphRepo(repo: RepositoryDetail): Future[GraphRepository] = async{
-    val starGazers: Seq[GraphUserSummary] = if(repo.stargazers_count > 0) await(getRepoStargazers(repo)) else null
-    val languages = await(getRepoLanguages(repo))
-    GraphRepository(repo.name, repo.description, repo.html_url, repo.fork, starGazers, languages)
+
+    val starGazersF: Future[Seq[GraphUserSummary]] = if(repo.stargazers_count > 0) getRepoStargazers(repo) else Future{ null }
+    val watchersF: Future[Seq[GraphUserSummary]] = getRepoWatchers(repo)
+    val languagesF = getRepoLanguages(repo)
+
+    val repoF = for {
+      starGazers <- starGazersF
+      watchers <- watchersF
+      languages <- languagesF
+    } yield GraphRepository(repo.name, repo.description, repo.html_url, repo.fork, starGazers, watchers, languages)
+
+    await(repoF)
   }
 
   def getRepoStargazers(repo: RepositoryDetail): Future[Seq[GraphUserSummary]] = async {
     val followers = await(JsonRestClient.get[Seq[UserSummary]](buildRequest(r => url(repo.stargazers_url))))
+    followers.map(f => GraphUserSummary(f.login, f.avatar_url, f.html_url))
+  }
+
+  def getRepoWatchers(repo: RepositoryDetail): Future[Seq[GraphUserSummary]] = async {
+    val followers = await(JsonRestClient.get[Seq[UserSummary]](buildRequest(r => url(repo.subscribers_url))))
     followers.map(f => GraphUserSummary(f.login, f.avatar_url, f.html_url))
   }
 
@@ -245,7 +261,7 @@ case class GraphUserSummary(  name: String,
 
 
 case class GraphRepository(name: String, description: String, htmlUrl: String, isFork: Boolean,
-                           starGazers: Seq[GraphUserSummary],
+                           starGazers: Seq[GraphUserSummary], watchers: Seq[GraphUserSummary],
                            languages: Map[String, BigInt]) extends GraphObject
 
 case class GitHubGraphUser(name: String, login: String, githubId: String,
