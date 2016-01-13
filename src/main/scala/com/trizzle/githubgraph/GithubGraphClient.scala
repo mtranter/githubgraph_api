@@ -38,13 +38,15 @@ class GitHubGraphClient(authToken: String = null)(implicit context: ExecutionCon
 
     val starGazersF: Future[Seq[GraphUserSummary]] = if(repo.stargazers_count > 0) getRepoStargazers(repo) else Future{ null }
     val watchersF: Future[Seq[GraphUserSummary]] = getRepoWatchers(repo)
+    val forksF: Future[Seq[RepositoryDetail]] = if(repo.forks_count > 0) JsonRestClient.get[Seq[RepositoryDetail]](buildRequest(r => url(repo.forks_url))) else  Future{null}
     val languagesF = getRepoLanguages(repo)
 
     val repoF = for {
       starGazers <- starGazersF
       watchers <- watchersF
       languages <- languagesF
-    } yield GraphRepository(repo.name, repo.description, repo.html_url, repo.fork, starGazers, watchers, languages)
+      forks <- forksF
+    } yield GraphRepository(repo.name, repo.description, repo.html_url, repo.fork, starGazers, watchers, forks, languages)
 
     await(repoF)
   }
@@ -242,32 +244,8 @@ case class RepositoryDetail(
                           subscribers_count: Double)
 
 
-abstract class GraphObject;
-
-case class GraphObjectCollection[T <: GraphObject](children: Seq[T])
-
- object  GraphObjectCollection{
-   implicit def seqToGraphCollection[T <: GraphObject](children: Seq[T]): GraphObjectCollection[T] ={
-    GraphObjectCollection(children)
-  }
-}
 
 case class Permissions(admin: Boolean, push: Boolean, pull: Boolean)
 
 
-case class GraphUserSummary(  name: String,
-                              avatar_url: String,
-                              html_url: String) extends GraphObject
-
-
-case class GraphRepository(name: String, description: String, htmlUrl: String, isFork: Boolean,
-                           starGazers: Seq[GraphUserSummary], watchers: Seq[GraphUserSummary],
-                           languages: Map[String, BigInt]) extends GraphObject
-
-case class GitHubGraphUser(name: String, login: String, githubId: String,
-                           avatar_url: String, html_url: String,
-                          followers: Seq[GraphUserSummary],
-                           repositories: Seq[GraphRepository] )
-
-case class GithubGraph(userDetail: GitHubGraphUser)
 
